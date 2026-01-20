@@ -4,152 +4,120 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="coi-serviceworker.js"></script>
-    <title>Cortador Pizza V3 (Diagnóstico)</title>
+    <title>Cortador PRO V5 (Streamer)</title>
     <style>
-        body { font-family: sans-serif; background: #f0f2f5; padding: 15px; text-align: center; }
-        .container { background: #fff; padding: 1.5rem; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }
-        h1 { margin-bottom: 1rem; color: #333; font-size: 1.5rem; }
-        input, button { width: 100%; margin-bottom: 10px; padding: 10px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
-        button:disabled { background: #ccc; }
-        #console-log { 
-            background: #222; color: #0f0; padding: 10px; 
-            border-radius: 8px; font-family: monospace; font-size: 12px; 
-            text-align: left; height: 150px; overflow-y: scroll; margin-top: 15px;
-            display: none; /* Se oculta si no hay errores */
-        }
-        .error-msg { color: #ff4444; }
-        .clip-card { border: 1px solid #ddd; padding: 10px; margin-top: 10px; border-radius: 8px; background: #fafafa; }
-        .btn-group { display: flex; gap: 5px; margin-top: 5px; }
-        .dl-btn { flex: 1; padding: 8px; background: #28a745; color: white; text-decoration: none; border-radius: 4px; font-size: 14px; }
-        .vert { background: #6f42c1; }
+        body { font-family: sans-serif; background: #1a1a1a; color: white; padding: 20px; text-align: center; }
+        .container { background: #2d2d2d; padding: 20px; border-radius: 12px; max-width: 600px; margin: 0 auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        h1 { color: #ff9900; }
+        input, select { width: 100%; padding: 10px; margin: 5px 0; border-radius: 8px; border: none; }
+        input { background: #404040; color: white; }
+        button { background: #007bff; color: white; padding: 15px; width: 100%; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #555; cursor: wait; }
+        .mode-select { background: #333; color: white; border: 1px solid #555; font-size: 16px; }
+        .clip-card { background: #404040; margin-top: 15px; padding: 10px; border-radius: 8px; border-left: 5px solid #ff9900; text-align: left; }
+        .btn-dl { display: inline-block; padding: 8px 15px; margin-top: 5px; border-radius: 5px; text-decoration: none; color: white; font-size: 14px; }
+        .dl-green { background: #28a745; }
+        .dl-purple { background: #6f42c1; }
+        #status { margin-top: 10px; color: #aaa; font-style: italic; }
     </style>
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1>🍕 Cortador Pizza V3</h1>
+        <h1>🍕 Pizza Cutter V5</h1>
         
         <input type="file" id="uploader" accept="video/*">
         
         <div style="display: flex; gap: 10px;">
             <input type="number" id="start" placeholder="Inicio (seg)" value="0">
-            <input type="number" id="end" placeholder="Fin (seg)" value="5">
+            <input type="number" id="end" placeholder="Fin (seg)" value="10">
         </div>
 
-        <button id="processBtn" onclick="procesarVideo()">✂️ Generar Clip</button>
-        <div id="status">Esperando video...</div>
-        
-        <div id="console-log"></div>
+        <label style="display:block; text-align:left; margin-top:10px; color:#aaa;">📺 Estilo de Video:</label>
+        <select id="mode" class="mode-select">
+            <option value="zoom">📱 Zoom Central (Normal)</option>
+            <option value="streamer">🎮 Streamer (Juego abajo + Cara arriba)</option>
+        </select>
+
+        <button id="processBtn" onclick="procesar()">✂️ GENERAR CLIP</button>
+        <div id="status">Listo para cortar.</div>
         <div id="gallery"></div>
     </div>
 
     <script>
         const { createFFmpeg, fetchFile } = FFmpeg;
-        // Activamos log: true para ver qué pasa en el cerebro del programa
-        let ffmpeg = createFFmpeg({ log: true });
+        const ffmpeg = createFFmpeg({ log: true });
         let videoCargado = false;
 
-        const statusText = document.getElementById('status');
-        const logger = document.getElementById('console-log');
-        const gallery = document.getElementById('gallery');
-
-        // Función para mostrar mensajes técnicos en pantalla
-        function log(msg, esError = false) {
-            logger.style.display = 'block';
-            const linea = document.createElement('div');
-            linea.textContent = '> ' + msg;
-            if (esError) linea.className = 'error-msg';
-            logger.prepend(linea);
-        }
-
         async function init() {
-            try {
-                await ffmpeg.load();
-                statusText.innerHTML = '✅ Sistema listo.';
-            } catch (e) {
-                statusText.innerHTML = '❌ Error de Carga (Seguridad)';
-                log('Error iniciando FFmpeg: ' + e.message, true);
-                log('POSIBLE SOLUCIÓN: Verifica que subiste el archivo "coi-serviceworker.js" a GitHub.', true);
-            }
+            try { await ffmpeg.load(); document.getElementById('status').innerText = "✅ Motor listo."; }
+            catch(e) { document.getElementById('status').innerText = "❌ Error: Falta la llave .js en GitHub"; }
         }
         init();
 
-        document.getElementById('uploader').addEventListener('change', () => {
-            videoCargado = false;
-            statusText.innerHTML = '✅ Video seleccionado.';
-            logger.innerHTML = ''; // Limpiar logs viejos
-        });
+        document.getElementById('uploader').addEventListener('change', () => { videoCargado = false; });
 
-        async function procesarVideo() {
+        async function procesar() {
             const files = document.getElementById('uploader').files;
             const start = document.getElementById('start').value;
             const end = document.getElementById('end').value;
+            const mode = document.getElementById('mode').value;
 
-            if (!files.length) return alert("Sube un video");
+            if (!files.length) return alert("Sube video");
             
-            document.getElementById('processBtn').disabled = true;
-            statusText.innerHTML = '⏳ Procesando...';
+            const btn = document.getElementById('processBtn');
+            btn.disabled = true;
+            document.getElementById('status').innerText = "⏳ Trabajando... (Paciencia)";
 
             try {
-                if (!ffmpeg.isLoaded()) await init();
-
                 if (!videoCargado) {
-                    statusText.innerHTML = '📦 Cargando video en memoria (Esto gasta RAM)...';
-                    log('Subiendo archivo a memoria...');
-                    await ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(files[0]));
+                    ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(files[0]));
                     videoCargado = true;
                 }
 
-                log(`Cortando de ${start}s a ${end}s...`);
-                
-                // Nombres únicos
-                const id = Date.now();
-                const outH = `h_${id}.mp4`;
-                const outV = `v_${id}.mp4`;
+                const outName = `clip_${Date.now()}.mp4`;
+                let comando = [];
 
-                // Procesos
-                await ffmpeg.run('-i', 'input.mp4', '-ss', start, '-to', end, '-c', 'copy', outH);
-                await ffmpeg.run('-i', 'input.mp4', '-ss', start, '-to', end, '-vf', 'crop=ih*(9/16):ih,scale=720:1280', '-c:v', 'libx264', '-preset', 'ultrafast', outV);
+                if (mode === 'zoom') {
+                    // MODO 1: Zoom simple al centro (Tiktok estilo CapCut)
+                    // Corta tiempo (-ss -to) y recorta centro (crop)
+                    comando = ['-i', 'input.mp4', '-ss', start, '-to', end, 
+                               '-vf', 'crop=ih*(9/16):ih,scale=720:1280', 
+                               '-c:v', 'libx264', '-preset', 'ultrafast', outName];
+                } else {
+                    // MODO 2: STREAMER (La Magia)
+                    // Divide la pantalla: Camara (esq superior izq) arriba, Juego (centro) abajo
+                    // Ajusta "crop=..." si tu cámara está en otro lado
+                    comando = ['-i', 'input.mp4', '-ss', start, '-to', end,
+                               '-filter_complex', 
+                               '[0:v]crop=960:540:0:0,scale=720:640[cara];[0:v]crop=960:1080:960:0,scale=720:640[juego];[cara][juego]vstack=inputs=2', 
+                               '-c:v', 'libx264', '-preset', 'ultrafast', outName];
+                }
 
-                agregarTarjeta(start, end, outH, outV);
+                await ffmpeg.run(...comando);
+
+                const data = ffmpeg.FS('readFile', outName);
+                const url = URL.createObjectURL(new Blob([data.buffer], {type: 'video/mp4'}));
                 
-                statusText.innerHTML = '✨ ¡Listo!';
+                // Crear tarjeta
+                const card = document.createElement('div');
+                card.className = 'clip-card';
+                card.innerHTML = `
+                    <strong>⏱️ ${start}s - ${end}s (${mode.toUpperCase()})</strong><br>
+                    <a href="${url}" download="${outName}" class="btn-dl dl-purple">⬇️ Descargar Video</a>
+                `;
+                document.getElementById('gallery').prepend(card);
+                
+                document.getElementById('status').innerText = "✨ ¡Terminado!";
 
             } catch (e) {
                 console.error(e);
-                statusText.innerHTML = '❌ Falló el proceso';
-                log('ERROR CRÍTICO: ' + e.message, true);
-                
-                if (e.message.includes("SharedArrayBuffer")) {
-                    alert("⚠️ ERROR DE SEGURIDAD: Faltan permisos.\n\nAsegúrate de que el archivo 'coi-serviceworker.js' esté en tu GitHub junto al index.html");
-                } else if (e.message.includes("memory")) {
-                    alert("⚠️ ERROR DE MEMORIA: Tu celular se quedó sin RAM.\n\nIntenta con un video más ligero o cierra otras apps.");
-                } else {
-                    alert("Error desconocido: Mira el cuadro negro abajo para más detalles.");
-                }
+                alert("Error: Tu celular se quedó sin memoria o el video es muy pesado.");
+                document.getElementById('status').innerText = "❌ Falló.";
             } finally {
-                document.getElementById('processBtn').disabled = false;
+                btn.disabled = false;
             }
-        }
-
-        function agregarTarjeta(start, end, nH, nV) {
-            const dH = ffmpeg.FS('readFile', nH);
-            const dV = ffmpeg.FS('readFile', nV);
-            
-            const uH = URL.createObjectURL(new Blob([dH.buffer], {type: 'video/mp4'}));
-            const uV = URL.createObjectURL(new Blob([dV.buffer], {type: 'video/mp4'}));
-
-            const div = document.createElement('div');
-            div.className = 'clip-card';
-            div.innerHTML = `
-                <div>⏱️ ${start}-${end}s</div>
-                <div class="btn-group">
-                    <a href="${uH}" download="clip_h.mp4" class="dl-btn">⬇️ Horiz</a>
-                    <a href="${uV}" download="clip_v.mp4" class="dl-btn vert">⬇️ Vert</a>
-                </div>
-            `;
-            gallery.prepend(div);
         }
     </script>
 </body>
